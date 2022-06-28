@@ -1,0 +1,25 @@
+stream:
+  camera_1_url: 
+  camera_2_url: 
+  camera_3_url: 
+  camera_4_url: 
+
+traffic:
+  seqence: [lamp_1, lamp_2, lamp_3, lamp_4]
+  yellow_delay: 3
+  lamp_1_set_color: green
+  lamp_1_time: 30
+  lamp_2_set_color: green
+  lamp_2_time: 30
+  lamp_3_set_color: green
+  lamp_3_time: 30
+  lamp_4_set_color: green
+  lamp_4_time: 30
+
+mqtt:
+  server: 127.0.0.1
+  port: 1883
+  username: name
+  password: pass
+  qos: 0
+  topic: smart_traffy
