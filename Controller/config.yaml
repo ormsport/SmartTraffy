@@ -2,7 +2,7 @@ system:
   name: SmartTraffy_00
 
 stream:
-  camera_1_url: rtsp://192.168.1.100/live   # stream1
+  camera_1_url: http://192.168.1.6:3000/_stream   # stream1
   camera_2_url: rtsp://192.168.1.101/live   # stream2
   camera_3_url: rtsp://192.168.1.102/live   # stream3
   camera_4_url: rtsp://192.168.1.103/live   # stream4
@@ -20,7 +20,7 @@ traffic:
   lamp_4_time: 30
 
 mqtt:
-  server: 192.168.1.14   # mqtt server address or hostname
+  server: 192.168.1.69   # mqtt server address or hostname
   port: 1883    # mqtt server port
   username: controller    # mqtt user
   password: Nae/buf=o3jo    # mqtt password
@@ -31,12 +31,12 @@ mqtt:
 
 yolo:
   model_path: yolov5    # model directory path
-  weights: yolov5n-7.pt   # model.pt path(s)
-  data: coco128.yaml    # dataset.yaml path
+  weights: yolov5n6.pt   # model.pt path(s)
+  data: data/coco128.yaml    # dataset.yaml path
   conf_thres: 0.25    # confidence threshold
   iou_thres: 0.45   # NMS IOU threshold
   max_det: 1000   # maximum detections per image
-  img_size: 640   # inference size h,w
+  img_size: [640,640]   # inference size h,w
   device: 0   # cuda device, i.e. 0 or 0,1,2,3 or cpu
   view_img: true    # show results
   save_txt: false   # save results to *.txt
@@ -56,6 +56,7 @@ yolo:
   hide_conf: false    # hide confidences
   half: false   # use FP16 half-precision inference
   dnn: false    # use OpenCV DNN for ONNX inference
+  vid_stride: 1 # Video frame-rate stride
 
 statistic:
   db_path: mysql+pymysql://user:password@localhost/DB_NAME?unix_socket=/var/run/mysqld/mysqld.sock&charset=utf8mb4

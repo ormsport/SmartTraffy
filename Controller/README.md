@@ -1,0 +1,2 @@
+# SmartTraffy - Controller
+This is a Python script that will run on Raspberry Pi 4B (4GB). It'll process RTSP stream from node(s) with an object detection model(YOLOv5), then calculate the time, finally it'll send commands to node(s). Connection between controller and node(s) is WiFi connection.
