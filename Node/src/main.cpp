@@ -7,7 +7,6 @@
 #include <WebServer.h>
 #include <HTTPUpdateServer.h>
 #include <SPIFFS.h>
-#include <Ticker.h>
 #include <AutoConnect.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
@@ -16,6 +15,11 @@
 #include "OV2640Streamer.h"
 #include "OV2640.h"
 #include "CRtspSession.h"
+#include <Ticker.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_NeoMatrix.h>
+#include <Adafruit_NeoPixel.h>
+#include <Fonts/TomThumb.h>
 
 Ticker ticker;
 WebServer server(80);
@@ -37,6 +41,10 @@ AutoConnectAux auxLanding;
 AutoConnectAux auxUpload;
 AutoConnectAux auxBrowse;
 AutoConnectAux auxUpdate(update_path, "Update");
+Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(8, 8, 1, 1, MATRIX_PIN,
+  NEO_MATRIX_BOTTOM + NEO_MATRIX_RIGHT,
+  NEO_GRB + NEO_KHZ800);
+const uint16_t colors[] = { matrix.Color(255,0,0), matrix.Color(219,123,43), matrix.Color(0,255,0) };
 
 #include "functions.h"
 
@@ -83,6 +91,20 @@ void setup() {
   }
 
   // ***************************************************************************
+  // Setup: Signal
+  // ***************************************************************************
+  pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(R_PIN, OUTPUT);
+  pinMode(Y_PIN, OUTPUT);
+  pinMode(G_PIN, OUTPUT);
+  pinMode(MATRIX_PIN, OUTPUT);
+  matrix.begin();
+  matrix.setTextWrap(false);
+  matrix.setFont(&TomThumb);
+  matrix.setBrightness(20);
+  matrix.setTextColor(colors[0]);
+
+  // ***************************************************************************
   // Setup: SPIFFS
   // ***************************************************************************
   if (!SPIFFS.begin()) {
@@ -116,6 +138,10 @@ void setup() {
         mqtt_intopic = mqtt_intopic + "/in";
         _mqtt_qos = mqtt_qos;
         nickname = nickname + "-" + nodeid;
+        litBri = LIGHT_BRIGHTNESS;
+        matBri = MATRIX_BRIGHTNESS;
+        blkTiming = BLINK_TIMING;
+        mode = R_BLK;
         updateConfigFS = true;
     }
 
@@ -215,7 +241,7 @@ void setup() {
   auxBrowse.on(postUpload);
   portal.onNotFound(_handleFileRead);
   portal.join({ auxLanding, auxUpload, auxBrowse, auxUpdate });
-
+  WiFi.setSleep(WIFI_PS_NONE);  //prevent wifi disconnect
   if (portal.begin()) {
     if (MDNS.begin(nickname.c_str())) {
         MDNS.addService("http", "tcp", 80);
@@ -269,8 +295,11 @@ void loop() {
   portal.handleClient();
   handleRTSP();
 
+  // signal system handle
+  handleLight();
+
   //check wifi status(non-blocking)
-  if (WiFi.status() == WL_CONNECTED) {
+  if (WiFi.status() != WL_DISCONNECTED) {
     //print wifi status once when connected
     if (offline) {
       offline = false;

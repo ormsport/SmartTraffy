@@ -3,7 +3,7 @@
 //#################################
 void tick() {
     //toggle state
-    int state = digitalRead(LED_BUILTIN);  // get the current state of GPIO1 pin
+    bool state = digitalRead(LED_BUILTIN);  // get the current state of GPIO1 pin
     digitalWrite(LED_BUILTIN, !state);     // set pin to the opposite state
 }
 
@@ -247,10 +247,276 @@ void handleRTSP() {
 }
 
 //#################################
+//--------lightSystemHandle--------
+//#################################
+void clearLight() { //clear all displayed
+    analogWrite(R_PIN, 255);
+    analogWrite(Y_PIN, 255);
+    analogWrite(G_PIN, 255);
+    matrix.fillScreen(0);
+    matrix.show();
+    rState = yState = false;
+}
+
+void updateLight() {    //set update led with current light
+    if (light == R) {
+        analogWrite(R_PIN, 255-_litBri);
+        analogWrite(Y_PIN, 255);
+    } else if (light == Y) {
+        analogWrite(Y_PIN, 255-_litBri);
+        analogWrite(G_PIN, 255);
+    } else if (light == G) {
+        analogWrite(G_PIN, 255-_litBri);
+        analogWrite(R_PIN, 255);
+    }
+    _light = light; //update current light
+}
+
+void setLightRed() {    //force set light to red w/o countdown
+    light = R;
+    matrix.fillScreen(0);
+    matrix.setTextColor(colors[0]);
+    matrix.setCursor(1, 6);
+    matrix.print("--");
+    matrix.show();
+    updateLight();
+}
+
+void setLightGreen() {  //force set light to green w/o countdown
+    light = G;
+    matrix.fillScreen(0);
+    matrix.setTextColor(colors[2]);
+    matrix.setCursor(1, 6);
+    matrix.print("--");
+    matrix.show();
+    updateLight();
+}
+
+void setLightOff() {
+    clearLight();
+    light = OFF;
+}
+
+void rTick() {
+  bool state = rState;
+  if (!state) { //on
+    matrix.fillScreen(0);
+    matrix.setTextColor(colors[0]);
+    matrix.setCursor(1, 6);
+    matrix.print("--");
+    matrix.show();
+    analogWrite(R_PIN, 255-_litBri);
+    rState = !rState;
+  } else {  //off
+    matrix.fillScreen(0);
+    matrix.show();
+    analogWrite(R_PIN, 255);
+    rState = !rState;
+  }
+}
+void yTick() {
+ bool state = yState;
+  if (!state) { //on
+    matrix.fillScreen(0);
+    matrix.setTextColor(colors[1]);
+    matrix.setCursor(1, 6);
+    matrix.print("--");
+    matrix.show();
+    analogWrite(Y_PIN, 255-_litBri);
+    yState = !yState;
+  } else {  //off
+    matrix.fillScreen(0);
+    matrix.show();
+    analogWrite(Y_PIN, 255);
+    yState = !yState;
+  }
+}
+void gTick() {
+  bool state = gState;
+  if (!state) { //on
+    matrix.fillScreen(0);
+    matrix.setTextColor(colors[2]);
+    matrix.setCursor(1, 6);
+    matrix.print("--");
+    matrix.show();
+    analogWrite(G_PIN, 255-_litBri);
+    gState = !gState;
+  } else {  //off
+    matrix.fillScreen(0);
+    analogWrite(G_PIN, 255);
+    gState = !gState;
+  }
+}
+
+void calLightTiming() { //light timing calculation
+    uint8_t id = nodeid.toInt();
+    q = 0;
+    while (id != seq[q]) {  //find queue number with current id
+        q++;
+    }
+
+    gTiming = timing[id];
+
+    if (start) {    //calculate only queue before queue number
+        if (q > 0) rTiming = (SWITCH_OFFSET * q) + (yTiming * q);
+        else rTiming = 3;
+        for (uint8_t i=0; i < q; i++) {
+            rTiming += timing[seq[i]];
+        }
+    } else {    //calculate all queue
+        rTiming = (SWITCH_OFFSET * (maxSeq - 1)) + (yTiming * (maxSeq - 1));
+        for (int8_t i = 0; i < maxSeq; i++) {
+            rTiming += timing[i];
+        }
+        rTiming -= timing[id];
+        if (rTiming > 99) rTiming = 99; //only 2 digits cause 8*8 matrix display limitation
+        timingUpdate = false;
+    }
+    #if defined(printdebug)
+    Serial.printf("queue: %d, gTiming: %d, rTiming: %d\n", q, gTiming, rTiming);
+    #endif
+}
+
+void handleLight() {
+    if (start) {  //run somethings at start once
+        clearLight();
+        light = R;
+        mode = AUTO;
+    }
+
+    if (_mode != mode) {    //if mode change clear displayed light
+        clearLight();
+    }
+
+    //light mode condition
+    if (mode == AUTO) { //if mode is auto
+        if (_mode != mode) {
+            light = R;
+            next = true;
+            start = timingUpdate = true;
+        }
+    } else if (mode == R_BLK) { //if mode is red blink
+        if (_mode != mode) {
+            light = R;
+        }
+        if ((millis() - lastTick) >= blkTiming) {
+            lastTick = millis();
+            rTick();
+        }
+    } else if (mode == Y_BLK) { //if mode is yellow blink
+        if (_mode != mode) {
+            light = Y;
+        }
+        if ((millis() - lastTick) >= blkTiming) {
+            lastTick = millis();
+            yTick();
+        }
+    } else if (mode == MAN) {   //if mode is manual
+        if (cmdUpdate) {
+            if (gId == nodeid.toInt()) {
+                setLightGreen();
+            } else if (_light == G) {
+                next = true;
+            }
+            cmdUpdate = false;
+        }
+    } else if (mode == ALL_RED) {   //if mode is all red
+        if (_mode != mode) {
+            if (light == G) {
+                next = true;
+            } else {
+                setLightRed();
+            }
+        }
+    }
+
+    //countdown end
+    if (next) {
+        if(timingUpdate || start) calLightTiming();  //if data updated do timing calculation
+        if (!start && (mode == AUTO || mode == MAN || mode == ALL_RED )) { //rotate to next light
+            if (_light == R) {
+                light = G;
+            } else if (_light == Y) {
+                light = R;
+            } else if (_light == G) {
+                light = Y;
+            }
+        } 
+
+        if (mode == AUTO || mode == MAN || mode == ALL_RED) {
+            if (light == R) {
+                count = rTiming;
+                color_num = 0;
+            } else if (light == Y) {
+                count = yTiming;
+                color_num = 1;
+            } else if (light == G) {
+                count = gTiming;
+                color_num = 2;
+            }
+        }
+        next = false;
+    }
+
+    //counter, matrix countdown
+    if (!next && ((millis() - last_count) >= 1000)) {
+        last_count = millis();
+        
+        if ((mode == AUTO) || ((mode == MAN || mode == ALL_RED) && light == Y)) {
+            updateLight();
+            matrix.fillScreen(0);
+            matrix.setTextColor(colors[color_num]);
+            if(count > 9) matrix.setCursor(1, 6);
+            else matrix.setCursor(4, 6);
+            matrix.print(count);
+            matrix.show();
+            count--;
+        }
+        if (count == 0)
+            next = true;
+
+        if ((mode == ALL_RED || mode == MAN) && light == R) {
+            setLightRed();
+        }
+        #if defined(printdebug)
+        Serial.printf("litBri: %d, matBri: %d, count: %d, next: %d, light: %s, mode: %s, rTiming: %d, yTiming: %d, gTiming: %d\n", litBri, matBri, count+1, next, lightStatus[light], opMode[mode], rTiming, yTiming, gTiming);
+        #endif
+    }
+  
+    //brightness handler
+    if (((litBri != _litBri) || (matBri != _matBri)) && ((millis() - lastAdj) >= fadeVal)) {
+        lastAdj = millis();
+        //light brightness (invert value - common anode)
+        if (_litBri < litBri) { //increase brightness
+            _litBri++;
+        } else if (_litBri > litBri) {  //decrease brightness
+            _litBri--;
+        }
+        if (rState || yState || mode == AUTO || mode == MAN || mode == ALL_RED) {
+            if (light == R) analogWrite(R_PIN, 255-_litBri);
+            else if (light == Y) analogWrite(Y_PIN, 255-_litBri);
+            else if (light == G) analogWrite(G_PIN, 255-_litBri);
+        }
+
+        //matrix brightness
+        if (_matBri < matBri) { //increase brightness
+            _matBri++;
+        } else if (_matBri > matBri) {  //decrease brightness
+            _matBri--;
+        }
+        matrix.setBrightness(_matBri);
+        matrix.show();
+    }
+    
+    start = false;
+    _mode = mode;   //update current mode
+}
+
+//#################################
 //-----------json process----------
 //#################################
 bool processJson(char* message) {
-    const size_t bufferSize = JSON_OBJECT_SIZE(2) + 5;
+    const size_t bufferSize = JSON_OBJECT_SIZE(4) + JSON_OBJECT_SIZE(4) + JSON_OBJECT_SIZE(4) + 5;
     DynamicJsonDocument jsonBuffer(bufferSize);
     DeserializationError error = deserializeJson(jsonBuffer, message);
     if (error) {
@@ -260,43 +526,74 @@ bool processJson(char* message) {
     }
     //Serial.println("JSON ParseObject() done!");
     JsonObject root = jsonBuffer.as<JsonObject>();
-    if (root.containsKey("state")) {
-        1;
+
+    if (root.containsKey("mode")) {
+        mode = root["mode"];
     }
-    if (root.containsKey("speed")) {
-        1;
+    if (root.containsKey("id")) {
+        gId = root["id"];
+        cmdUpdate = true;
+    }
+    if (root.containsKey("blkTiming")) {
+        blkTiming = root["blkTiming"];
+        updateConfigFS = true;
+    }
+    if (root.containsKey("litBri")) {
+        litBri = root["litBri"];
+        updateConfigFS = true;
+    }
+    if (root.containsKey("matBri")) {
+        matBri = root["matBri"];
+        updateConfigFS = true;
+    }
+    if (root.containsKey("sequence")) {
+        JsonArray _seq = root["sequence"];
+        for (uint8_t i=0; i<maxSeq; i++) {
+            seq[i] = _seq[i];
+        }
+        //memcpy(seq, &_seq, maxSeq);
+        updateConfigFS = true;
+        timingUpdate = true;
+    }
+    if (root.containsKey("timing")) {
+        JsonArray _timing = root["timing"];
+        for (uint8_t i=0; i<maxSeq; i++) {
+            if (_timing[i] > 99) timing[i] = 99;
+            else timing[i] = _timing[i];
+        }
+        //memcpy(timing, &_timing, maxSeq);
+        updateConfigFS = true;
+        timingUpdate = true;
     }
     
     jsonBuffer.clear();
-    //priority = mqtt;
     //sendState();
-    //updateConfigFS = true;
     return true;
 }
 
 //#################################
 //----------MQTT callback----------
 //#################################
-void checkpayload(uint8_t* payload, bool mqtt = false, uint8_t num = 0) {
-    if (payload[0] == '#') {
-        mqttClient.publish(mqtt_outtopic.c_str(), String(String("OK ") + String((char*)payload)).c_str());
-    }
+void checkpayload(uint8_t * payload, bool mqtt = false, uint8_t num = 0) {
+  if (payload[0] == '#') {
+    mqttClient.publish(mqtt_outtopic.c_str(), String(String("OK ") + String((char *)payload)).c_str());
+  }
 }
 
 void mqtt_callback(char* topic, byte* payload_in, unsigned int length) {
-    byte* payload = (byte*)malloc(length);
-    memcpy(payload, payload_in, length);
-    //payload[length] = NULL;
-    Serial.printf("MQTT: Message arrived [%s]  from topic: [%s]\n", payload, topic);
-    if (strcmp(topic, mqtt_intopic.c_str()) == 0) {
-        if (!processJson((char*)payload)) {
-            free(payload);
-            return;
-        }
-    } else if (strcmp(topic, (char*)mqtt_intopic.c_str()) == 0) {
-        checkpayload(payload, true);
-        free(payload);
+  uint8_t * payload = (uint8_t *)malloc(length + 1);
+  memcpy(payload, payload_in, length);
+  payload[length] = NULL;
+  Serial.printf("MQTT: Message arrived [%s]  from topic: [%s]\n", payload, topic);
+  if (strcmp(topic, mqtt_intopic.c_str()) == 0) {
+    //mqtt_cmd = true;
+    if (!processJson((char*)payload)) {
+      return;
     }
+  } else if (strcmp(topic, (char *)mqtt_intopic.c_str()) == 0) {
+    checkpayload(payload, true);
+    free(payload);
+  }
 }
 
 void mqttReconnect() {
@@ -343,12 +640,13 @@ bool writeConfigFS() {
     updateFS = true;
     //save the strip state to FS JSON
     Serial.print("Saving cfg: ");
-    const size_t capacity = JSON_OBJECT_SIZE(3) + JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(6) + JSON_OBJECT_SIZE(22) + 300;
+    const size_t capacity = JSON_OBJECT_SIZE(5) + JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(6) + JSON_OBJECT_SIZE(22) + JSON_OBJECT_SIZE(6) + JSON_OBJECT_SIZE(4) + JSON_OBJECT_SIZE(4) + 300;
     DynamicJsonDocument jsonBuffer(capacity);
     JsonObject json = jsonBuffer.to<JsonObject>();
     JsonObject node = json.createNestedObject("node");
     JsonObject cam = json.createNestedObject("cam");
     JsonObject mqtt = json.createNestedObject("mqtt");
+    JsonObject light = json.createNestedObject("light");
 
     //node config
     node["name"] = nickname;
@@ -388,6 +686,20 @@ bool writeConfigFS() {
     cam["vfl"] = camCfg->status.vflip; //v-flip
     cam["dcw"] = camCfg->status.dcw; //reducing image frame UXGA to XGA
 
+    //last light config
+    light["mode"] = mode;
+    light["blkTiming"] = blkTiming;
+    light["litBri"] = litBri;
+    light["matBri"] = matBri;
+    JsonArray sequence = light.createNestedArray("sequence");
+    for (uint8_t i; i<maxSeq; i++) {
+        sequence.add(seq[i]);
+    }
+    JsonArray time = light.createNestedArray("time");
+    for (uint8_t i; i<maxSeq; i++) {
+        time.add(timing[i]);
+    }
+
     //SPIFFS.remove("/config.json") ? Serial.println("removed file") : Serial.println("failed removing file");
     File configFile = SPIFFS.open("/config.json", "w");
     if (!configFile) {
@@ -418,7 +730,7 @@ bool readConfigFS() {
         // Allocate a buffer to store contents of the file.
         std::unique_ptr<char[]> buf(new char[size]);
         configFile.readBytes(buf.get(), size);
-        DynamicJsonDocument jsonBuffer(JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(6) + JSON_OBJECT_SIZE(22) + 300);
+        DynamicJsonDocument jsonBuffer(JSON_OBJECT_SIZE(5) + JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(6) + JSON_OBJECT_SIZE(22) + JSON_OBJECT_SIZE(6) + JSON_OBJECT_SIZE(4) + JSON_OBJECT_SIZE(4) + 300);
         DeserializationError error = deserializeJson(jsonBuffer, buf.get());
         if (!error) {
             JsonObject json = jsonBuffer.as<JsonObject>();
@@ -463,6 +775,20 @@ bool readConfigFS() {
             res = s->set_dcw(s, json["cam"]["dcw"]);
             if (res < 0)
                 Serial.println("Failed to set camera sensor");
+            
+            //last light config
+            mode = json["light"]["mode"];
+            blkTiming = json["light"]["blkTiming"];
+            litBri = json["light"]["litBri"];
+            matBri = json["light"]["matBri"];
+            JsonArray _seq = json["light"]["sequence"];
+            for (uint8_t i=0; i<maxSeq; i++) {
+                seq[i] = _seq[i];
+            }
+            JsonArray _timing = json["light"]["time"];
+            for (uint8_t i=0; i<maxSeq; i++) {
+                timing[i] = _timing[i];
+            }
 
             updateFS = false;
             return true;
@@ -479,7 +805,3 @@ bool readConfigFS() {
     updateFS = false;
     return false;
 }
-
-//#################################
-//-------fan handle-------
-//#################################

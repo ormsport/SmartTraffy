@@ -20,6 +20,19 @@ const char* update_path = "/update";
 const char* update_username = "admin";
 const char* update_password = "admin";
 
+//light
+#define SWITCH_OFFSET 1
+#define BLINK_TIMING 1200
+#define LIGHT_BRIGHTNESS 255
+#define MATRIX_BRIGHTNESS 255
+#define fadeVal 2
+
+//IO
+#define R_PIN 13
+#define Y_PIN 15
+#define G_PIN 14
+#define MATRIX_PIN 12
+
 //Cam model
 //#define CAMERA_MODEL_WROVER_KIT // Has PSRAM
 //#define CAMERA_MODEL_ESP_EYE // Has PSRAM
@@ -59,9 +72,22 @@ bool updateConfigFS = false, updateFS = false, cfgLoaded, mqtt_config_invaild, m
  const char* mqtt_clientid = nickname + "-" + nodeid;
 #endif
 
-// AutoConnectAUx entry point
+//AutoConnectAUx entry point
 const char*  const _configUrl = "/config";
 const char*  const _applyUrl = "/apply";
+
+//WS2812 Matrix status, light variable
+uint8_t timing[4] = {20, 5, 10, 15}, seq[4] = {3, 0, 2, 1};
+enum status {OFF, R, Y, G} _light, light;
+const char* lightStatus[] = {"off", "red", "yellow", "green"};
+enum op {AUTO, R_BLK, Y_BLK, MAN, ALL_RED} _mode, mode;
+const char* opMode[] = {"auto", "rBlink", "yBlink", "manual", "allRed"};
+uint8_t maxSeq = sizeof(timing);
+uint8_t color_num, rTiming, yTiming = 3, gTiming, count, q, gId;
+uint8_t _litBri, litBri, _matBri, matBri;
+uint32_t last_count, lastAdj, lastTick;
+uint16_t blkTiming;
+bool start = true, next = true, timingUpdate = true, cmdUpdate, rState, yState, gState;
 
 //AutoConnect Custom Page
 //This page for an example only, you can prepare the other for your application.
@@ -164,7 +190,7 @@ static const char NODE_CONFIG_PAGE[] PROGMEM = R"*(
       "name": "mqttTopic",
       "type": "ACInput",
       "label": "Listen Topic",
-      "placeholder": "SmartTraffy/cmd",
+      "placeholder": "SmartTraffy/cmd/in",
       "maxlength": "^.{1,64}"
     },
     {
