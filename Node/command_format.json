@@ -1,0 +1,11 @@
+//This is only format example file 
+
+{
+    "litBri":0-255,         //set light brightness, value between 0-255
+    "matBri":0-255,         //set matrix brightness, value between 0-255
+    "sequence":[3,0,2,1],   //set green light sequence with node ID, should start with 0 and maximum value is 255
+    "timing":[15,10,30,20], //set green light timing, index 0 is mean node ID 0, maximum value is 99 (8x8 matrix limitation)
+    "mode":0,               //set mode 0 to 4. 0-auto, 1-red blink, 2-yellow blink, 3-manual, 4-all red
+    "id":0,                 //force set green light by node ID, only use in manual mode(un-match node will turn to red automatically)
+    "blkTiming":1200        //red or yellow light blink timing
+}
