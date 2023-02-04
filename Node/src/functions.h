@@ -381,7 +381,7 @@ void handleLight() {
     if (start) {  //run somethings at start once
         clearLight();
         light = R;
-        mode = AUTO;
+        mode = FIX_TIME;
     }
 
     if (_mode != mode) {    //if mode change clear displayed light
@@ -391,6 +391,13 @@ void handleLight() {
     //light mode condition
     if (mode == AUTO) { //if mode is auto
         if (_mode != mode) {
+            if (light == G) {
+                next = true;
+            }
+        }
+    } else if (mode == FIX_TIME) { //if mode is fix_time
+        if (_mode != mode) {
+            memcpy(timing, timing0, maxSeq);
             light = R;
             next = true;
             start = timingUpdate = true;
@@ -433,7 +440,7 @@ void handleLight() {
     //countdown end
     if (next) {
         if(timingUpdate || start) calLightTiming();  //if data updated do timing calculation
-        if (!start && (mode == AUTO || mode == MAN || mode == ALL_RED )) { //rotate to next light
+        if (!start && (mode == AUTO || mode == FIX_TIME || mode == MAN || mode == ALL_RED )) { //rotate to next light
             if (_light == R) {
                 light = G;
             } else if (_light == Y) {
@@ -443,7 +450,7 @@ void handleLight() {
             }
         } 
 
-        if (mode == AUTO || mode == MAN || mode == ALL_RED) {
+        if (mode == AUTO || mode == FIX_TIME || mode == MAN || mode == ALL_RED) {
             if (light == R) {
                 count = rTiming;
                 color_num = 0;
@@ -462,7 +469,7 @@ void handleLight() {
     if (!next && ((millis() - last_count) >= 1000)) {
         last_count = millis();
         
-        if ((mode == AUTO) || ((mode == MAN || mode == ALL_RED) && light == Y)) {
+        if ((mode == FIX_TIME) || ((mode == AUTO || mode == MAN || mode == ALL_RED) && light == Y) || (mode == AUTO && light == G)) {
             updateLight();
             matrix.fillScreen(0);
             matrix.setTextColor(colors[color_num]);
@@ -471,11 +478,11 @@ void handleLight() {
             matrix.print(count);
             matrix.show();
             count--;
+            if (count == 0)
+                next = true;
         }
-        if (count == 0)
-            next = true;
-
-        if ((mode == ALL_RED || mode == MAN) && light == R) {
+        
+        if ((mode == AUTO || mode == ALL_RED || mode == MAN) && light == R) {
             setLightRed();
         }
         #if defined(printdebug)
@@ -492,7 +499,7 @@ void handleLight() {
         } else if (_litBri > litBri) {  //decrease brightness
             _litBri--;
         }
-        if (rState || yState || mode == AUTO || mode == MAN || mode == ALL_RED) {
+        if (rState || yState || mode == FIX_TIME || mode == MAN || mode == ALL_RED) {
             if (light == R) analogWrite(R_PIN, 255-_litBri);
             else if (light == Y) analogWrite(Y_PIN, 255-_litBri);
             else if (light == G) analogWrite(G_PIN, 255-_litBri);
@@ -562,8 +569,11 @@ bool processJson(char* message) {
             else timing[i] = _timing[i];
         }
         //memcpy(timing, &_timing, maxSeq);
-        updateConfigFS = true;
         timingUpdate = true;
+        if (mode != AUTO) {
+            updateConfigFS = true;
+        } else if (light == R && timing[nodeid.toInt()])
+            next = true;
     }
     
     jsonBuffer.clear();
@@ -787,7 +797,7 @@ bool readConfigFS() {
             }
             JsonArray _timing = json["light"]["time"];
             for (uint8_t i=0; i<maxSeq; i++) {
-                timing[i] = _timing[i];
+                timing0[i] = timing[i] = _timing[i];
             }
 
             updateFS = false;

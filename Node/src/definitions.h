@@ -77,11 +77,11 @@ const char*  const _configUrl = "/config";
 const char*  const _applyUrl = "/apply";
 
 //WS2812 Matrix status, light variable
-uint8_t timing[4] = {20, 5, 10, 15}, seq[4] = {3, 0, 2, 1};
+uint8_t timing0[4], timing[4] = {20, 5, 10, 15}, seq[4] = {3, 0, 2, 1};
 enum status {OFF, R, Y, G} _light, light;
 const char* lightStatus[] = {"off", "red", "yellow", "green"};
-enum op {AUTO, R_BLK, Y_BLK, MAN, ALL_RED} _mode, mode;
-const char* opMode[] = {"auto", "rBlink", "yBlink", "manual", "allRed"};
+enum op {AUTO, FIX_TIME, R_BLK, Y_BLK, MAN, ALL_RED} _mode, mode;
+const char* opMode[] = {"auto", "fixTime", "rBlink", "yBlink", "manual", "allRed"};
 uint8_t maxSeq = sizeof(timing);
 uint8_t color_num, rTiming, yTiming = 3, gTiming, count, q, gId;
 uint8_t _litBri, litBri, _matBri, matBri;
