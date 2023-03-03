@@ -16,6 +16,7 @@
 #include "OV2640.h"
 #include "CRtspSession.h"
 #include <Ticker.h>
+#include "time.h"
 #include <Adafruit_GFX.h>
 #include <Adafruit_NeoMatrix.h>
 #include <Adafruit_NeoPixel.h>
@@ -37,6 +38,7 @@ WiFiClient client;
 #include "definitions.h"
 #include "camera_pins.h"
 
+AutoConnectConfig Config;
 AutoConnectAux auxLanding;
 AutoConnectAux auxUpload;
 AutoConnectAux auxBrowse;
@@ -228,7 +230,11 @@ void setup() {
   // Setup: AutoConnect
   // ***************************************************************************
   //config softAP ssid
-  portal.config(mqtt_clientid, "");
+  Config.apid = mqtt_clientid;
+  Config.psk = "";
+  Config.autoReconnect = true;
+  Config.hostName = mqtt_clientid;
+  portal.config(Config);
   portal.onDetect(atDetect);
   //append FSBrowse path
   portal.append("/edit", "FSBrowse");
@@ -254,6 +260,11 @@ void setup() {
     Serial.println("Connection failed.");
     while (true) { yield(); }
   }
+
+  // ***************************************************************************
+  // Setup: NTP
+  // ***************************************************************************
+  configTime(0, 0, ntpServer);
 
   // ***************************************************************************
   // Setup: MQTT(PubSupClient)
@@ -295,6 +306,9 @@ void loop() {
   portal.handleClient();
   handleRTSP();
 
+  //update time
+  epochTime = getTime();
+
   // signal system handle
   handleLight();
 
@@ -326,7 +340,13 @@ void loop() {
     offline = true;
     mqtt_reconnect_retries = 0;
     ticker.attach(0.6, tick);
-    Serial.print("WiFi disconnected, reconnecting...");
+    Serial.print("WiFi disconnected, reconnecting");
+    WiFi.reconnect();
+    while (WiFi.status() == WL_DISCONNECTED) {
+        Serial.print(".");
+        delay(500);
+    }
+    Serial.println("");
   }
 
   if (updateConfigFS && !updateFS) {

@@ -10,10 +10,13 @@ const char* mqtt_host = "192.168.1.70";
 const char* mqtt_port = "1883";
 const char* mqtt_user = "mLS8^UuxNXD";
 const char* mqtt_pass = "X^56&Fm4&rpb";
-String mqtt_intopic = "SmartTraffy/cmd";
+String mqtt_intopic = "SmartTraffy/controller/cmd/out";
 const char* mqtt_qos = "0";
 #define MQTT_MAX_RECONNECT_TRIES 5
 const uint8_t giveup_delay = 1; // min
+
+//NTP
+const char* ntpServer = "pool.ntp.org";
 
 //HTTP update
 const char* update_path = "/update";
@@ -28,10 +31,10 @@ const char* update_password = "admin";
 #define fadeVal 2
 
 //IO
-#define R_PIN 13
+#define R_PIN 14
 #define Y_PIN 15
-#define G_PIN 14
-#define MATRIX_PIN 12
+#define G_PIN 13
+#define MATRIX_PIN 2
 
 //Cam model
 //#define CAMERA_MODEL_WROVER_KIT // Has PSRAM
@@ -82,12 +85,13 @@ enum status {OFF, R, Y, G} _light, light;
 const char* lightStatus[] = {"off", "red", "yellow", "green"};
 enum op {AUTO, FIX_TIME, R_BLK, Y_BLK, MAN, ALL_RED} _mode, mode;
 const char* opMode[] = {"auto", "fixTime", "rBlink", "yBlink", "manual", "allRed"};
-uint8_t maxSeq = sizeof(timing);
-uint8_t color_num, rTiming, yTiming = 3, gTiming, count, q, gId;
+uint8_t cycleTime, counter, maxSeq = sizeof(timing);
+uint8_t color_num, rTiming, yTiming = 3, gTiming, countdown, q, gId=255;
 uint8_t _litBri, litBri, _matBri, matBri;
 uint32_t last_count, lastAdj, lastTick;
 uint16_t blkTiming;
-bool start = true, next = true, timingUpdate = true, cmdUpdate, rState, yState, gState;
+uint64_t _epochTime, epochTime;
+bool start = true, next = true, timingUpdate = true, cmdUpdate, afterY, rState, yState, gState;
 
 //AutoConnect Custom Page
 //This page for an example only, you can prepare the other for your application.

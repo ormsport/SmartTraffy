@@ -216,3 +216,6 @@ runs/detect/
 .gcc-flags.json
 .pio
 .vscode
+
+# Cusotm
+Node/.gitignore

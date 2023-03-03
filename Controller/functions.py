@@ -12,13 +12,27 @@ import torch
 import torch.backends.cudnn as cudnn
 
 from yolov5.models.common import DetectMultiBackend
-from yolov5.utils.dataloaders import IMG_FORMATS, VID_FORMATS, LoadImages, LoadStreams
+from yolov5.utils.custom_dataloaders import IMG_FORMATS, VID_FORMATS, LoadImages, LoadStreams
 from yolov5.utils.general import (LOGGER, Profile, check_file, check_img_size, check_imshow, check_requirements, colorstr, cv2,
-                           increment_path, non_max_suppression, print_args, scale_coords, strip_optimizer, xyxy2xywh)
+                           increment_path, non_max_suppression, print_args, scale_boxes, strip_optimizer, xyxy2xywh)
 from yolov5.utils.plots import Annotator, colors, save_one_box
 from yolov5.utils.torch_utils import select_device, smart_inference_mode
 
 @smart_inference_mode()
+
+# variable class
+class mqttConfig:
+    def __init__(self, host, port, version, username, password, topicOut, topicIn, qos, clientId, reConTime):
+        self.host = host
+        self.port = port
+        self.version = version
+        self.username = username
+        self.password = password
+        self.out_topic = topicOut
+        self.in_topic = topicIn
+        self.qos = qos
+        self.clientId = clientId
+        self.reConTime = reConTime
 
 # get host by name
 def getHost(name):
@@ -59,10 +73,6 @@ def str2bool(str):
         return True
     else:
         return False
-
-# config file validation
-def configValidation(path):
-    pass
 
 # yolo v5 - object detection
 class YOLOv5:
@@ -113,7 +123,7 @@ class YOLOv5:
         self.stride, self.names, self.pt = self.model.stride, self.model.names, self.model.pt
         self.imgsz = check_img_size(self.imgsz, s=self.stride)  # check image size
 
-    def loadData(self, source):
+    def loadData(self, source, area):
         self.save_img = not self.nosave and not source.endswith('.txt')  # save inference images
         self.is_file = Path(source).suffix[1:] in (IMG_FORMATS + VID_FORMATS)
         self.is_url = source.lower().startswith(('rtsp://', 'rtmp://', 'http://', 'https://'))
@@ -123,17 +133,18 @@ class YOLOv5:
         # Dataloader
         if self.webcam:
             self.view_img = check_imshow()
-            dataset = LoadStreams(source, img_size=self.imgsz, stride=self.stride, auto=self.pt, vid_stride=self.vid_stride)
+            dataset = LoadStreams(source, area, img_size=self.imgsz, stride=self.stride, auto=self.pt, vid_stride=self.vid_stride)
             self.bs = len(dataset)  # batch_size
         else:
             self.bs = 1  # batch_size
-            dataset = LoadImages(source, img_size=self.imgsz, stride=self.stride, auto=self.pt, vid_stride=self.vid_stride)
+            dataset = LoadImages(source, area, img_size=self.imgsz, stride=self.stride, auto=self.pt, vid_stride=self.vid_stride)
         self.transforms = dataset.transforms
         return dataset
 
-    def detect(self, data):
-        path, im, im0s, s = data[0], data[1], data[2], data[4] 
+    def detect(self, data, area):
+        path, im, im0s, s, im1s = data[0], data[1], data[2], data[4], data[5]
         seen, windows, dt = 0, [], (Profile(), Profile(), Profile())
+        x, y, w, h = area[0], area[1], area[2], area[3]
 
         # Run inference
         self.model.warmup(imgsz=(1 if self.pt else self.bs, 3, *self.imgsz))  # warmup
@@ -158,23 +169,22 @@ class YOLOv5:
             result = []
             seen += 1
             if self.webcam:  # batch_size >= 1
-                p, im0 = path[i], im0s[i].copy()
+                p, im0, im1 = path[i], im0s[i].copy(), im1s[i].copy()
                 s += f'{i}: '
             else:
-                p, im0 = path, im0s.copy()
-
+                p, im0, im1 = path, im0s.copy(), im1s.copy()
             
             s += '%gx%g ' % im.shape[2:]  # print string
-            annotator = Annotator(im0, line_width=self.line_thickness, example=str(self.names))
+            annotator = Annotator(im1, line_width=self.line_thickness, example=str(self.names))
             if len(det):
                 # Rescale boxes from img_size to im0 size
-                det[:, :4] = scale_coords(im.shape[2:], det[:, :4], im0.shape).round()
+                det[:, :4] = scale_boxes(im.shape[2:], det[:, :4], im0.shape).round()
 
                 # Print results
                 for c in det[:, -1].unique():
                     n = (det[:, -1] == c).sum()  # detections per class
                     s += f"{n} {self.names[int(c)]}{'s' * (n > 1)}, "  # add to string
-                    tmp = [self.names[int(c)], int(n)]
+                    tmp = {self.names[int(c)]:int(n)}
                     result.append(tmp)
                 
                 # Write results
@@ -182,18 +192,36 @@ class YOLOv5:
                     if self.view_img:
                         c = int(cls)  # integer class
                         label = None if self.hide_labels else (self.names[c] if self.hide_conf else f'{self.names[c]} {conf:.2f}')
+                        xyxy[0] += x
+                        xyxy[1] += y
+                        xyxy[2] += x
+                        xyxy[3] += y
                         annotator.box_label(xyxy, label, color=colors(c, True))
 
             # Stream results
-            im0 = annotator.result()
+            im1 = annotator.result()
             if self.view_img:
                 if platform.system() == 'Linux' and p not in windows:
                     windows.append(p)
                     cv2.namedWindow(str(p), cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)  # allow window resize (Linux)
-                    cv2.resizeWindow(str(p), im0.shape[1], im0.shape[0])
-                cv2.imshow(str(p), im0)
+                    cv2.resizeWindow(str(p), im1.shape[1], im1.shape[0])
+                cv2.imshow(str(p), im1)
                 cv2.waitKey(1)  # 1 millisecond
 
         # Print time (inference-only)
         #print(f"{s}{'' if len(det) else '(no detections), '}{dt[1].dt * 1E3:.1f}ms")
+        result = [{i:j for x in result for i,j in x.items()}]
         return json.dumps(result)
+"""
+class async_mqtt:
+    def __init__(self, config):
+        self.host = config.host
+        self.port = config.port
+        self.username = config.username
+        self.password = config.password
+        self.topic = config.topic
+        self.qos = config.qos
+        self.version = config.version 
+        self.clientId = config.clientid
+        self.reconnect_interval = config.reConTime
+"""

@@ -206,6 +206,20 @@ void handleNotFound() {
 }
 
 //#################################
+//---------------NTP---------------
+//#################################
+uint64_t getTime() {
+  time_t now;
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    //Serial.println("Failed to obtain time");
+    return(0);
+  }
+  time(&now);
+  return now;
+}
+
+//#################################
 //---------------RTSP--------------
 //#################################
 void handleRTSP() {
@@ -269,7 +283,6 @@ void updateLight() {    //set update led with current light
         analogWrite(G_PIN, 255-_litBri);
         analogWrite(R_PIN, 255);
     }
-    _light = light; //update current light
 }
 
 void setLightRed() {    //force set light to red w/o countdown
@@ -355,22 +368,39 @@ void calLightTiming() { //light timing calculation
         q++;
     }
 
-    gTiming = timing[id];
+    if (counter == 0) gTiming = timing[id];
 
-    if (start) {    //calculate only queue before queue number
-        if (q > 0) rTiming = (SWITCH_OFFSET * q) + (yTiming * q);
-        else rTiming = 3;
-        for (uint8_t i=0; i < q; i++) {
-            rTiming += timing[seq[i]];
+    if (start) {
+        cycleTime = 3;
+        for (uint8_t i; i< maxSeq; i++) {
+            cycleTime += timing[i] + yTiming + SWITCH_OFFSET;
         }
-    } else {    //calculate all queue
-        rTiming = (SWITCH_OFFSET * (maxSeq - 1)) + (yTiming * (maxSeq - 1));
-        for (int8_t i = 0; i < maxSeq; i++) {
-            rTiming += timing[i];
+    }
+
+    if (mode != AUTO) gTiming = timing[id];
+
+    if (start || mode == AUTO || mode == FIX_TIME) {
+        Serial.println("calLightTiming: mode auto/fix_time");
+        if (start) {    //calculate only queue before queue number
+            Serial.println("calLightTiming: start timing");
+            if (q > 0) rTiming = (SWITCH_OFFSET * q) + (yTiming * (q+1));
+            else rTiming = 3;
+            for (uint8_t i=0; i < q; i++) {
+                rTiming += timing[seq[i]];
+            }
+        } else {    //calculate all queue
+            Serial.println("calLightTiming: continue timing");
+            rTiming = (SWITCH_OFFSET * maxSeq) + (yTiming * (maxSeq - 1));
+            for (int8_t i = 0; i < maxSeq; i++) {
+                rTiming += timing[i];
+            }
+            rTiming -= timing[id];
+            if (rTiming > 99) rTiming = 99; //only 2 digits cause 8*8 matrix display limitation
+            timingUpdate = false;
         }
-        rTiming -= timing[id];
-        if (rTiming > 99) rTiming = 99; //only 2 digits cause 8*8 matrix display limitation
-        timingUpdate = false;
+    } else if (mode == MAN) {
+        Serial.println("calLightTiming: mode manual");
+        rTiming = yTiming + SWITCH_OFFSET;
     }
     #if defined(printdebug)
     Serial.printf("queue: %d, gTiming: %d, rTiming: %d\n", q, gTiming, rTiming);
@@ -381,19 +411,24 @@ void handleLight() {
     if (start) {  //run somethings at start once
         clearLight();
         light = R;
-        mode = FIX_TIME;
+        mode = R_BLK;
+        memcpy(timing, timing0, maxSeq);
+        calLightTiming();
     }
 
     if (_mode != mode) {    //if mode change clear displayed light
         clearLight();
+        memcpy(timing, timing0, maxSeq);
     }
 
     //light mode condition
     if (mode == AUTO) { //if mode is auto
         if (_mode != mode) {
-            if (light == G) {
-                next = true;
-            }
+            memcpy(timing, timing0, maxSeq);
+            afterY = false;
+            light = R;
+            next = start = timingUpdate = true;
+            counter = 0;
         }
     } else if (mode == FIX_TIME) { //if mode is fix_time
         if (_mode != mode) {
@@ -420,9 +455,14 @@ void handleLight() {
         }
     } else if (mode == MAN) {   //if mode is manual
         if (cmdUpdate) {
+            Serial.println("manual: cmd update");
             if (gId == nodeid.toInt()) {
-                setLightGreen();
-            } else if (_light == G) {
+                Serial.println("manual: node match");
+                rTiming = yTiming + SWITCH_OFFSET;
+                _light = light = Y;
+                next = true;
+            } else if (light == G) {
+                Serial.println("manual: change from G to Y");
                 next = true;
             }
             cmdUpdate = false;
@@ -437,10 +477,57 @@ void handleLight() {
         }
     }
 
+    //counter, matrix countdown
+    if (!next && (_epochTime != epochTime)) {
+        if ((mode == AUTO && !afterY) || mode == FIX_TIME || (mode == ALL_RED && light == Y) || (mode == MAN && light == Y) || (mode == MAN && light == R && gId == nodeid.toInt())) {
+            updateLight();
+            Serial.println("counter: counting down");
+            matrix.fillScreen(0);
+            matrix.setTextColor(colors[color_num]);
+            if(countdown > 9) matrix.setCursor(1, 6);
+            else matrix.setCursor(4, 6);
+            matrix.print(countdown);
+            matrix.show();
+            countdown--;
+            counter++;
+            if (countdown == 0) {
+                if (mode == AUTO && light == Y) {
+                    afterY = true;
+                } else next = true;
+            } 
+        } else if (afterY && mode == AUTO) {
+            setLightRed();
+            counter++;
+            if (counter == cycleTime) {
+                afterY = false;
+                counter = 0;
+                light = R;
+                start = next = timingUpdate = true;
+            }
+        }
+        
+        if ((mode == ALL_RED && light == R) || (mode == MAN && gId != nodeid.toInt() && light != Y)) {
+            Serial.println("counter: force red");
+            setLightRed();
+        }
+
+        if (mode == MAN && light == G) {
+            Serial.println("counter: force green");
+            setLightGreen();
+        }
+
+        _epochTime = epochTime;
+        #if defined(printdebug)
+        Serial.printf("countdown: %d, counter: %d, cycleTime: %d, afterY: %d, next: %d, _light: %s, light: %s, rTiming: %d, yTiming: %d, gTiming: %d\n", countdown+1, counter, cycleTime, afterY, next, lightStatus[_light], lightStatus[light], rTiming, yTiming, gTiming);
+        #endif
+    }
+
     //countdown end
     if (next) {
+        Serial.println("next: do in next");
         if(timingUpdate || start) calLightTiming();  //if data updated do timing calculation
         if (!start && (mode == AUTO || mode == FIX_TIME || mode == MAN || mode == ALL_RED )) { //rotate to next light
+            Serial.println("next: change to next light");
             if (_light == R) {
                 light = G;
             } else if (_light == Y) {
@@ -451,43 +538,19 @@ void handleLight() {
         } 
 
         if (mode == AUTO || mode == FIX_TIME || mode == MAN || mode == ALL_RED) {
+            Serial.println("next: set timing and matrix color");
             if (light == R) {
-                count = rTiming;
+                countdown = rTiming;
                 color_num = 0;
             } else if (light == Y) {
-                count = yTiming;
+                countdown = yTiming;
                 color_num = 1;
             } else if (light == G) {
-                count = gTiming;
+                countdown = gTiming;
                 color_num = 2;
             }
         }
         next = false;
-    }
-
-    //counter, matrix countdown
-    if (!next && ((millis() - last_count) >= 1000)) {
-        last_count = millis();
-        
-        if ((mode == FIX_TIME) || ((mode == AUTO || mode == MAN || mode == ALL_RED) && light == Y) || (mode == AUTO && light == G)) {
-            updateLight();
-            matrix.fillScreen(0);
-            matrix.setTextColor(colors[color_num]);
-            if(count > 9) matrix.setCursor(1, 6);
-            else matrix.setCursor(4, 6);
-            matrix.print(count);
-            matrix.show();
-            count--;
-            if (count == 0)
-                next = true;
-        }
-        
-        if ((mode == AUTO || mode == ALL_RED || mode == MAN) && light == R) {
-            setLightRed();
-        }
-        #if defined(printdebug)
-        Serial.printf("litBri: %d, matBri: %d, count: %d, next: %d, light: %s, mode: %s, rTiming: %d, yTiming: %d, gTiming: %d\n", litBri, matBri, count+1, next, lightStatus[light], opMode[mode], rTiming, yTiming, gTiming);
-        #endif
     }
   
     //brightness handler
@@ -517,6 +580,7 @@ void handleLight() {
     
     start = false;
     _mode = mode;   //update current mode
+    _light = light; //update current light
 }
 
 //#################################
@@ -569,11 +633,11 @@ bool processJson(char* message) {
             else timing[i] = _timing[i];
         }
         //memcpy(timing, &_timing, maxSeq);
-        timingUpdate = true;
         if (mode != AUTO) {
             updateConfigFS = true;
+            timingUpdate = true;
         } else if (light == R && timing[nodeid.toInt()])
-            next = true;
+            timingUpdate = true;
     }
     
     jsonBuffer.clear();
