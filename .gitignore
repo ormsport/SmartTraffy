@@ -200,12 +200,10 @@ cython_debug/
 .idea/
 
 # YOLOv5
-Controller/yolov5/
+Controller/yolov5/*
 !Controller/yolov5/utils/custom_dataloaders.py
 !Controller/yolov5/models/yolov5n-custom.yaml
-!Controller/yolov5/SmartTraffy-dataset-final-2/weights/best-int8_edgetpu.tflite
-!Controller/yolov5/SmartTraffy-dataset-final-2/weights/best.pt
-!Controller/yolov5/SmartTraffy-dataset-final-2/weights/last.pt
+!Controller/yolov5/SmartTraffy-dataset-final-2/weights/*
 !Controller/yolov5/SmartTraffy-dataset-final-2/data.yaml
 !Controller/yolov5/detect.txt
 !Controller/yolov5/train.txt
