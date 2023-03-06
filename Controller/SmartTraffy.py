@@ -20,11 +20,7 @@ HwMac = ""
 # mqtt global vriable
 client = None
 mqttCfg = ""
-
-# logger global vriable
-db_path = ""
-db_update_interval = ""
-db_keep_day = ""
+en = False
 
 # multiprocessing queue
 q0 = mp.Queue()
@@ -52,51 +48,48 @@ def obj_detect_1(sys_config, q0):
     yolo = YOLOv5(config=config)
     data = yolo.loadData(source, area)
     data.count = 0
-    try:
-        while data.frame < 500:
-            result = yolo.detect(next(data), area)
-            q0.put(result)
-    except KeyboardInterrupt:
-        print("Loop interrupted by user")
+    while True:
+        result = yolo.detect(next(data), area)
+        q0.put(result)
 
 
 def obj_detect_2(sys_config, q1):
     config = sys_config['yolo']
-    source = sys_config['stream']['camera1_url']
-    area = sys_config['detect_area']['camera1_area']
+    source = sys_config['stream']['camera2_url']
+    area = sys_config['detect_area']['camera2_area']
     yolo = YOLOv5(config=config)
     data = yolo.loadData(source, area)
     data.count = 0
-    while data.frame < 500:
+    while True:
         result = yolo.detect(next(data), area)
         q1.put(result)
 
 def obj_detect_3(sys_config, q2):
     config = sys_config['yolo']
-    source = sys_config['stream']['camera1_url']
-    area = sys_config['detect_area']['camera1_area']
+    source = sys_config['stream']['camera3_url']
+    area = sys_config['detect_area']['camera3_area']
     yolo = YOLOv5(config=config)
     data = yolo.loadData(source, area)
     data.count = 0
-    while data.frame < 500:
+    while True:
         result = yolo.detect(next(data), area)
         q2.put(result)
 
 def obj_detect_4(sys_config, q3):
     config = sys_config['yolo']
-    source = sys_config['stream']['camera1_url']
-    area = sys_config['detect_area']['camera1_area']
+    source = sys_config['stream']['camera4_url']
+    area = sys_config['detect_area']['camera4_area']
     yolo = YOLOv5(config=config)
     data = yolo.loadData(source, area)
     data.count = 0
-    while data.frame < 500:
+    while True:
         result = yolo.detect(next(data), area)
         q3.put(result)
 
 async def watchdog():
-    global sys_config
     global p1, p2, p3, p4
     while True:
+        """
         if not p1.is_alive():
             p1.start()
         if not p2.is_alive():
@@ -105,110 +98,123 @@ async def watchdog():
             p3.start()
         if not p4.is_alive():
             p4.start()
+        """
         await asyncio.sleep(1)
 
 async def processResult():
-    global sys_config, q0, q0, q2, q3
+    global sys_config, q0, q0, q2, q3, en
     timing = sys_config['light']['vehicle_timing']
     max_timing = sys_config['light']['max_timing']
-    try:
-        while True:
-            #0
-            while not q0.empty():   #clear queue before get new value
-                q0.get()  # as docs say: Remove and return an item from the queue.
-            id0_vehicle = json.loads(q0.get())
+    min_timing = sys_config['light']['min_timing']
+    while True:
+        await asyncio.sleep(5)
 
-            #1
-            while not q1.empty():   #clear queue before get new value
-                q1.get()  # as docs say: Remove and return an item from the queue.
-            id1_vehicle = json.loads(q1.get())
+        #0
+        while not q0.empty():   #clear queue before get new value
+            q0.get()  # as docs say: Remove and return an item from the queue.
+        id0_vehicle = json.loads(q0.get())
 
-            #2
-            while not q2.empty():   #clear queue before get new value
-                q2.get()  # as docs say: Remove and return an item from the queue.
-            id2_vehicle = json.loads(q2.get())
+        #1
+        while not q1.empty():   #clear queue before get new value
+            q1.get()  # as docs say: Remove and return an item from the queue.
+        id1_vehicle = json.loads(q1.get())
 
-            #3
-            while not q3.empty():   #clear queue before get new value
-                q3.get()  # as docs say: Remove and return an item from the queue.
-            id3_vehicle = json.loads(q3.get())
+        #2
+        while not q2.empty():   #clear queue before get new value
+            q2.get()  # as docs say: Remove and return an item from the queue.
+        id2_vehicle = json.loads(q2.get())
 
-            id0_timing = 0
-            id1_timing = 0
-            id2_timing = 0
-            id3_timing = 0
+        #3
+        while not q3.empty():   #clear queue before get new value
+            q3.get()  # as docs say: Remove and return an item from the queue.
+        id3_vehicle = json.loads(q3.get())
 
-            # calculate only exist keys(id0) 
-            if 'car' in id0_vehicle[0]:
-                id0_timing += id0_vehicle[0]['car'] * timing[0]
-            if 'motorcycle' in id0_vehicle[0]:
-                id0_timing += id0_vehicle[0]['motorcycle'] * timing[1]
-            if 'bus' in id0_vehicle[0]:
-                id0_timing += id0_vehicle[0]['bus'] * timing[2]
-            if 'truck' in id0_vehicle[0]:
-                id0_timing += id0_vehicle[0]['truck'] * timing[3]
+        id0_timing = 0
+        id1_timing = 0
+        id2_timing = 0
+        id3_timing = 0
 
-            # calculate only exist keys(id1) 
-            if 'car' in id1_vehicle[0]:
-                id1_timing += id1_vehicle[0]['car'] * timing[0]
-            if 'motorcycle' in id1_vehicle[0]:
-                id1_timing += id1_vehicle[0]['motorcycle'] * timing[1]
-            if 'bus' in id1_vehicle[0]:
-                id1_timing += id1_vehicle[0]['bus'] * timing[2]
-            if 'truck' in id1_vehicle[0]:
-                id1_timing += id1_vehicle[0]['truck'] * timing[3]
+        # calculate only exist keys(id0) 
+        if '01_CAR' in id0_vehicle[0]:
+            id0_timing += id0_vehicle[0]['01_CAR'] * timing[0]
+        if '02_VAN' in id0_vehicle[0]:
+            id0_timing += id0_vehicle[0]['02_VAN'] * timing[1]
+        if '03_BUS' in id0_vehicle[0]:
+            id0_timing += id0_vehicle[0]['03_BUS'] * timing[2]
+        if '04_TRUCK' in id0_vehicle[0]:
+            id0_timing += id0_vehicle[0]['04_TRUCK'] * timing[3]
 
-            # calculate only exist keys(id2) 
-            if 'car' in id2_vehicle[0]:
-                id2_timing += id2_vehicle[0]['car'] * timing[0]
-            if 'motorcycle' in id2_vehicle[0]:
-                id2_timing += id2_vehicle[0]['motorcycle'] * timing[1]
-            if 'bus' in id2_vehicle[0]:
-                id2_timing += id2_vehicle[0]['bus'] * timing[2]
-            if 'truck' in id2_vehicle[0]:
-                id2_timing += id2_vehicle[0]['truck'] * timing[3]
+        # calculate only exist keys(id1) 
+        if '01_CAR' in id1_vehicle[0]:
+            id1_timing += id1_vehicle[0]['01_CAR'] * timing[0]
+        if '02_VAN' in id1_vehicle[0]:
+            id1_timing += id1_vehicle[0]['02_VAN'] * timing[1]
+        if '03_BUS' in id1_vehicle[0]:
+            id1_timing += id1_vehicle[0]['03_BUS'] * timing[2]
+        if '04_TRUCK' in id1_vehicle[0]:
+            id1_timing += id1_vehicle[0]['04_TRUCK'] * timing[3]
 
-            # calculate only exist keys(id3) 
-            if 'car' in id3_vehicle[0]:
-                id3_timing += id3_vehicle[0]['car'] * timing[0]
-            if 'motorcycle' in id3_vehicle[0]:
-                id3_timing += id3_vehicle[0]['motorcycle'] * timing[1]
-            if 'bus' in id3_vehicle[0]:
-                id3_timing += id3_vehicle[0]['bus'] * timing[2]
-            if 'truck' in id3_vehicle[0]:
-                id3_timing += id3_vehicle[0]['truck'] * timing[3]
+        # calculate only exist keys(id2) 
+        if '01_CAR' in id2_vehicle[0]:
+            id2_timing += id2_vehicle[0]['01_CAR'] * timing[0]
+        if '02_VAN' in id2_vehicle[0]:
+            id2_timing += id2_vehicle[0]['02_VAN'] * timing[1]
+        if '03_BUS' in id2_vehicle[0]:
+            id2_timing += id2_vehicle[0]['03_BUS'] * timing[2]
+        if '04_TRUCK' in id2_vehicle[0]:
+            id2_timing += id2_vehicle[0]['04_TRUCK'] * timing[3]
 
-            
+        # calculate only exist keys(id3) 
+        if '01_CAR' in id3_vehicle[0]:
+            id3_timing += id3_vehicle[0]['01_CAR'] * timing[0]
+        if '02_VAN' in id3_vehicle[0]:
+            id3_timing += id3_vehicle[0]['02_VAN'] * timing[1]
+        if '03_BUS' in id3_vehicle[0]:
+            id3_timing += id3_vehicle[0]['03_BUS'] * timing[2]
+        if '04_TRUCK' in id3_vehicle[0]:
+            id3_timing += id3_vehicle[0]['04_TRUCK'] * timing[3]
 
-            if id0_timing > max_timing[0]:
-                id0_timing = max_timing[0]
-            if id1_timing > max_timing[1]:
-                id1_timing = max_timing[1]
-            if id2_timing > max_timing[2]:
-                id2_timing = max_timing[2]
-            if id3_timing > max_timing[3]:
-                id3_timing = max_timing[3]
+        
+        # limit output by max_timing
+        if id0_timing > max_timing[0]:
+            id0_timing = max_timing[0]
+        if id1_timing > max_timing[1]:
+            id1_timing = max_timing[1]
+        if id2_timing > max_timing[2]:
+            id2_timing = max_timing[2]
+        if id3_timing > max_timing[3]:
+            id3_timing = max_timing[3]
 
-            res = [id0_timing, id1_timing, id2_timing, id3_timing]
-            final_cmd = {"timing": [value for value in res]}
-            final_cmd = json.dumps(final_cmd)
-            print(final_cmd)
+        # limit output by min_timing
+        if id0_timing < min_timing[0]:
+            id0_timing = min_timing[0]
+        if id1_timing < min_timing[1]:
+            id1_timing = min_timing[1]
+        if id2_timing < min_timing[2]:
+            id2_timing = min_timing[2]
+        if id3_timing < min_timing[3]:
+            id3_timing = min_timing[3]
+
+        res = [id0_timing, id1_timing, id2_timing, id3_timing]
+        final_cmd = {"timing": [value for value in res]}
+        final_cmd = json.dumps(final_cmd)
+        print(final_cmd)
+        if en:
             await publish(final_cmd)
 
-            await asyncio.sleep(1)
-    except KeyboardInterrupt:
-        print("User interrupted, stop process data")
-
-async def update_db():
-    while True:
-        print('this from update_db')
-        await asyncio.sleep(db_update_interval)
-
 async def mqtt_on_message(message):
+    global en, mqttCfg
     topic = message.topic
     payload = message.payload.decode('utf-8')
     print('topic:', topic)
     print('payload:', payload)
+    cmd = json.loads(payload)
+    if 'mode' in cmd:
+        mode = cmd['mode']
+        if mode == 0:
+            en = True
+        else:
+            en = False
 
 async def publish(message, retain=False):
     global mqttCfg, client
@@ -226,8 +232,8 @@ async def mqtt_loop():
     logger.info("MQTT Client ID: %s", mqttCfg.clientId)
     async with client.unfiltered_messages() as messages:
         # config set topic
-        await client.subscribe(mqttCfg.in_topic, mqttCfg.qos)
-        logger.info("Subscribed to: %s",mqttCfg.in_topic)
+        await client.subscribe(mqttCfg.out_topic, mqttCfg.qos)
+        logger.info("Subscribed to: %s",mqttCfg.out_topic)
         async for message in messages:
             asyncio.ensure_future(mqtt_on_message(message))
 
@@ -335,7 +341,6 @@ async def initialize(
     p2.start()
     p3.start()
     p4.start()
-
     # start process result
     task2 = asyncio.create_task(processResult())
     # start watchdog
@@ -356,7 +361,6 @@ async def initialize(
         p3.join()
         p4.terminate()
         p4.join()
-
 
 # print arguments function
 def print_args(args: Optional[dict] = None, show_file=True, show_fcn=False):

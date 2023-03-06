@@ -91,7 +91,11 @@ class YOLOv5:
         self.save_conf = str2bool(str(config['save_conf']))
         self.save_crop = str2bool(str(config['save_crop']))
         self.nosave = str2bool(str(config['nosave']))
-        self.classes = config['classes']
+        classes = config['classes']
+        if not classes:
+            self.classes = None
+        else:
+            self.classes = config['classes']
         self.agnostic_nms = str2bool(str(config['agnostic_nms']))
         self.augment = str2bool(str(config['augment']))
         self.visualize = str2bool(str(config['visualize']))
@@ -132,7 +136,7 @@ class YOLOv5:
             source = check_file(source)  # download
         # Dataloader
         if self.webcam:
-            self.view_img = check_imshow()
+            # = check_imshow()
             dataset = LoadStreams(source, area, img_size=self.imgsz, stride=self.stride, auto=self.pt, vid_stride=self.vid_stride)
             self.bs = len(dataset)  # batch_size
         else:
@@ -212,16 +216,3 @@ class YOLOv5:
         #print(f"{s}{'' if len(det) else '(no detections), '}{dt[1].dt * 1E3:.1f}ms")
         result = [{i:j for x in result for i,j in x.items()}]
         return json.dumps(result)
-"""
-class async_mqtt:
-    def __init__(self, config):
-        self.host = config.host
-        self.port = config.port
-        self.username = config.username
-        self.password = config.password
-        self.topic = config.topic
-        self.qos = config.qos
-        self.version = config.version 
-        self.clientId = config.clientid
-        self.reconnect_interval = config.reConTime
-"""
