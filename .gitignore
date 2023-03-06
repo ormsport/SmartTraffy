@@ -200,7 +200,17 @@ cython_debug/
 .idea/
 
 # YOLOv5
-yolov5/
+yolov5
+!yolov5/utils/custom_dataloaders.py
+!yolov5/models/yolov5n-custom.yaml
+!yolov5/SmartTraffy-dataset-final-2/weights/best-int8_edgetpu.tflite
+!yolov5/SmartTraffy-dataset-final-2/weights/best.pt
+!yolov5/SmartTraffy-dataset-final-2/weights/last.pt
+!yolov5/SmartTraffy-dataset-final-2/data.yaml
+!yolov5/detect.txt
+!yolov5/train.txt
+!yolov5/export.txt
+
 etc/
 test.py
 pyvenv.cfg
