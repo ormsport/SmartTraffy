@@ -1,0 +1,1 @@
+python detect.py --nosave --view-img --device 0 --weights runs\train\exp5\weights\best.pt --data SmartTraffy-dataset-final-2\data.yaml --source rtsp://192.168.1.9:554/mjpeg/1
