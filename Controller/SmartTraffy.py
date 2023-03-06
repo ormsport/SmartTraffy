@@ -52,7 +52,6 @@ def obj_detect_1(sys_config, q0):
         result = yolo.detect(next(data), area)
         q0.put(result)
 
-
 def obj_detect_2(sys_config, q1):
     config = sys_config['yolo']
     source = sys_config['stream']['camera2_url']
