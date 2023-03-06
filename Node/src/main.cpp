@@ -93,18 +93,24 @@ void setup() {
   }
 
   // ***************************************************************************
-  // Setup: Signal
+  // Setup: GPIO
   // ***************************************************************************
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(R_PIN, OUTPUT);
   pinMode(Y_PIN, OUTPUT);
   pinMode(G_PIN, OUTPUT);
   pinMode(MATRIX_PIN, OUTPUT);
+
+  // ***************************************************************************
+  // Setup: WS2812b Matrix LED
+  // ***************************************************************************
   matrix.begin();
   matrix.setTextWrap(false);
   matrix.setFont(&TomThumb);
   matrix.setBrightness(20);
   matrix.setTextColor(colors[0]);
+
+  clearLight();
 
   // ***************************************************************************
   // Setup: SPIFFS
@@ -148,7 +154,7 @@ void setup() {
     }
 
   // ***************************************************************************
-  // Setup: Set node id
+  // Setup: Set node ID
   // ***************************************************************************
   uint64_t chipid64 = ESP.getEfuseMac();
   snprintf(chipid, 16, "%04X%08X", (uint16_t)(chipid64 >> 32), (uint32_t)chipid64);
@@ -161,7 +167,7 @@ void setup() {
 
 
   // ***************************************************************************
-  // Setup: HTTP update
+  // Setup: HTTP Update
   // ***************************************************************************
   httpUpdater.setup(&server, update_path, update_username, update_password);
 
@@ -310,7 +316,7 @@ void loop() {
   epochTime = getTime();
 
   // signal system handle
-  handleLight();
+  if (epochTime) handleLight();
 
   //check wifi status(non-blocking)
   if (WiFi.status() != WL_DISCONNECTED) {
@@ -344,7 +350,8 @@ void loop() {
     WiFi.reconnect();
     while (WiFi.status() == WL_DISCONNECTED) {
         Serial.print(".");
-        delay(500);
+        yield();
+        delay(300);
     }
     Serial.println("");
   }

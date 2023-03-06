@@ -16,7 +16,7 @@ const char* mqtt_qos = "0";
 const uint8_t giveup_delay = 1; // min
 
 //NTP
-const char* ntpServer = "pool.ntp.org";
+const char* ntpServer = "time.cloudflare.com";
 
 //HTTP update
 const char* update_path = "/update";
@@ -88,7 +88,7 @@ const char* opMode[] = {"auto", "fixTime", "rBlink", "yBlink", "manual", "allRed
 uint8_t cycleTime, counter, maxSeq = sizeof(timing);
 uint8_t color_num, rTiming, yTiming = 3, gTiming, countdown, q, gId=255;
 uint8_t _litBri, litBri, _matBri, matBri;
-uint32_t last_count, lastAdj, lastTick;
+uint32_t lastAdj, lastTick;
 uint16_t blkTiming;
 uint64_t _epochTime, epochTime;
 bool start = true, next = true, timingUpdate = true, cmdUpdate, afterY, rState, yState, gState;

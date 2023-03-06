@@ -416,26 +416,26 @@ void handleLight() {
         calLightTiming();
     }
 
-    if (_mode != mode) {    //if mode change clear displayed light
+    if (_mode != mode || (mode == FIX_TIME && cmdUpdate)) {    //if mode change clear displayed light
         clearLight();
         memcpy(timing, timing0, maxSeq);
+        counter = 0;
+        afterY = false;
+        gId = 255;
+        if (_light == G) next = true;
     }
 
     //light mode condition
     if (mode == AUTO) { //if mode is auto
         if (_mode != mode) {
-            memcpy(timing, timing0, maxSeq);
-            afterY = false;
             light = R;
             next = start = timingUpdate = true;
-            counter = 0;
         }
     } else if (mode == FIX_TIME) { //if mode is fix_time
-        if (_mode != mode) {
-            memcpy(timing, timing0, maxSeq);
+        if (_mode != mode || cmdUpdate) {
             light = R;
-            next = true;
-            start = timingUpdate = true;
+            next = start = timingUpdate = true;
+            cmdUpdate = false;
         }
     } else if (mode == R_BLK) { //if mode is red blink
         if (_mode != mode) {
@@ -629,15 +629,16 @@ bool processJson(char* message) {
     if (root.containsKey("timing")) {
         JsonArray _timing = root["timing"];
         for (uint8_t i=0; i<maxSeq; i++) {
-            if (_timing[i] > 99) timing[i] = 99;
+            if (_timing[i] > 28) timing[i] = 28;
             else timing[i] = _timing[i];
         }
-        //memcpy(timing, &_timing, maxSeq);
+
         if (mode != AUTO) {
+            memcpy(timing0, timing, maxSeq);
+            cmdUpdate = true;
             updateConfigFS = true;
-            timingUpdate = true;
-        } else if (light == R && timing[nodeid.toInt()])
-            timingUpdate = true;
+        }
+        timingUpdate = true;
     }
     
     jsonBuffer.clear();
@@ -771,7 +772,7 @@ bool writeConfigFS() {
     }
     JsonArray time = light.createNestedArray("time");
     for (uint8_t i; i<maxSeq; i++) {
-        time.add(timing[i]);
+        time.add(timing0[i]);
     }
 
     //SPIFFS.remove("/config.json") ? Serial.println("removed file") : Serial.println("failed removing file");
