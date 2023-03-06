@@ -1,0 +1,11 @@
+path: SmartTraffy-dataset-final-2
+train: train/images
+val: valid/images
+test: test/images
+
+names:
+  0: 01_CAR
+  1: 02_VAN
+  2: 03_BUS
+  3: 04_TRUCK
+  4: 05_TRAIN
