@@ -427,11 +427,10 @@ class LoadStreams:
             cv2.destroyAllWindows()
             raise StopIteration
 
-        im0 = self.imgs.copy()
+        im0, im1 = self.imgs.copy(), self.imgs.copy()
 
         # Crop frame
-        im1 = im0
-        im0 = im0[self.y:self.y+self.h, self.x:self.x+self.w]
+        im0[0] = im0[0][self.y:self.y+self.h, self.x:self.x+self.w]
 
         if self.transforms:
             im = np.stack([self.transforms(x) for x in im0])  # transforms
