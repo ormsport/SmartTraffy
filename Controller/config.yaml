@@ -2,21 +2,21 @@ system:
   name: SmartTraffyController
 
 stream:
-  camera1_url: 2019_1120_172552_022.MOV   # stream1
-  camera2_url: rtsp://192.168.1.101/live   # stream2
-  camera3_url: rtsp://192.168.1.102/live   # stream3
-  camera4_url: rtsp://192.168.1.103/live   # stream4
+  camera1_url: rtsp://192.168.1.9:554/mjpeg/1   # stream1
+  camera2_url: rtsp://192.168.1.6:554/mjpeg/1   # stream2
+  camera3_url: rtsp://192.168.1.7:554/mjpeg/1   # stream3
+  camera4_url: rtsp://192.168.1.5:554/mjpeg/1   # stream4
 
 detect_area:
-  camera1_area: [900, 0, 500, 1080] # x, y, width, height of camera1 for detection
-  camera2_area: [x, y, w, h] # x, y, width, height of camera2 for detection
-  camera3_area: [x, y, w, h] # x, y, width, height of camera3 for detection
-  camera4_area: [x, y, w, h] # x, y, width, height of camera4 for detection
+  camera1_area: [124, 195, 404, 404] # x, y, width, height of camera1 for detection
+  camera2_area: [117, 183, 314, 277] # x, y, width, height of camera2 for detection
+  camera3_area: [0, 68, 399, 364] # x, y, width, height of camera3 for detection
+  camera4_area: [168, 117, 301, 217] # x, y, width, height of camera4 for detection
 
 light:
-  seqence: [3, 1, 2, 0]   # seqence of light ID
-  max_timing: [45, 45, 45, 45]  # maximum green light timing
-  vehicle_timing: [5, 3, 10, 15]  # timing for vehicle by type - [car, motorcycle, bus, truck]
+  max_timing: [28, 28, 28, 28]  # maximum green light timing
+  min_timing: [2, 2, 2, 2]  # minimum green light timing
+  vehicle_timing: [3, 4, 5, 6]  # timing for vehicle by type - [car, van, bus, truck]
 
 mqtt:
   host: 192.168.1.69   # mqtt server address or hostname
@@ -32,19 +32,19 @@ mqtt:
 
 yolo:
   model_path: yolov5    # model directory path
-  weights: yolov5n6.pt   # model.pt path(s)
-  data: data/coco128.yaml    # dataset.yaml path
-  conf_thres: 0.25    # confidence threshold
+  weights: SmartTraffy-dataset-final-2/weights/best-int8_edgetpu.tflite   # model.pt path
+  data: SmartTraffy-dataset-final-2/data.yaml    # dataset.yaml path
+  conf_thres: 0.45    # confidence threshold
   iou_thres: 0.45   # NMS IOU threshold
-  max_det: 1000   # maximum detections per image
-  img_size: [600,800]   # inference size h,w
-  device: 0   # cuda device, i.e. 0 or 0,1,2,3 or cpu
-  view_img: true    # show results
+  max_det: 100   # maximum detections per image
+  img_size: [640,640]   # inference size h,w
+  device: cpu   # cuda device, i.e. 0 or 0,1,2,3 or cpu
+  view_img: false    # show results
   save_txt: false   # save results to *.txt
   save_conf: false    # save confidences in --save-txt labels
   save_crop: false    # save cropped prediction boxes
   nosave: true    # do not save images/videos
-  classes: [2, 3, 5, 7]   # filter by class from dataset file
+  classes: []   # filter by class from dataset file
   agnostic_nms: false   # class-agnostic NMS
   augment: false    # augmented inference
   visualize: false    # visualize features
